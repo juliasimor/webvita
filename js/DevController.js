@@ -48,14 +48,7 @@ export function initDevLoginForm() {
   if (!form) return;
 
   const errorEl = document.getElementById("login-error");
-  const toggleBtn = document.getElementById("toggle-password");
   const passwordInput = document.getElementById("dev-password");
-
-  toggleBtn?.addEventListener("click", () => {
-    const isPassword = passwordInput.type === "password";
-    passwordInput.type = isPassword ? "text" : "password";
-    toggleBtn.textContent = isPassword ? "🙈" : "👁";
-  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

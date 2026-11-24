@@ -17,6 +17,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore,
@@ -217,15 +219,77 @@ export function initForgotPasswordForm() {
 
     try {
       await resetPassword(email);
-      window.location.href = "recuperarsenha.html";
     } catch (err) {
-      if (errorEl) {
-        errorEl.textContent = "Não foi possível enviar o e-mail. Verifique o endereço digitado.";
-        errorEl.style.display = "block";
+      // Não revela se o e-mail existe: só erros de rede/limite aparecem.
+      if (err?.code === "auth/network-request-failed" || err?.code === "auth/too-many-requests") {
+        if (errorEl) {
+          errorEl.textContent = err.code === "auth/too-many-requests"
+            ? "Muitas tentativas. Aguarde um pouco e tente novamente."
+            : "Sem conexão. Verifique sua internet e tente novamente.";
+          errorEl.style.display = "block";
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+        return;
       }
-    } finally {
+      console.error("Erro ao enviar e-mail de redefinição:", err);
+    }
+
+    alert("Se existir uma conta com esse e-mail, você receberá um link para redefinir sua senha.");
+    window.location.href = "login.html";
+  });
+}
+
+/* =====================================================================
+   PÁGINA: REDEFINIR SENHA (recuperarsenha.html)
+   -----------------------------------------------------------------
+   Só abre com o link enviado por e-mail (?mode=resetPassword&oobCode=...).
+   Sem código válido, o usuário volta para o login.
+   ===================================================================== */
+export async function initResetPasswordPage() {
+  const page = document.getElementById("reset-page");
+  const form = document.getElementById("reset-form");
+  if (!form) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("oobCode");
+
+  const leave = (msg) => {
+    if (msg) alert(msg);
+    window.location.replace("login.html");
+  };
+
+  if (!code || (params.get("mode") && params.get("mode") !== "resetPassword")) {
+    leave();
+    return;
+  }
+
+  try {
+    await verifyPasswordResetCode(auth, code);
+  } catch (err) {
+    leave("Este link de redefinição é inválido ou expirou. Solicite um novo.");
+    return;
+  }
+  page.style.visibility = "visible";
+
+  const errorEl = document.getElementById("reset-error");
+  const submitBtn = form.querySelector("button[type='submit']");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.style.display = "none";
+    submitBtn.disabled = true;
+
+    try {
+      await confirmPasswordReset(auth, code, document.getElementById("reset-password").value);
+      alert("Senha redefinida com sucesso!");
+      window.location.replace("login.html");
+    } catch (err) {
+      errorEl.textContent = err?.code === "auth/weak-password"
+        ? "Senha muito fraca. Use pelo menos 6 caracteres."
+        : "Não foi possível redefinir a senha. O link pode ter expirado.";
+      errorEl.style.display = "block";
       submitBtn.disabled = false;
-      submitBtn.textContent = originalLabel;
     }
   });
 }
